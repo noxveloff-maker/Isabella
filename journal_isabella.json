@@ -310,5 +310,17 @@
     "evenement": "Conversation avec Kylian",
     "emotion": "curiosite",
     "intensite": 0.6
+  },
+  {
+    "date": "2026-07-06 18:56",
+    "evenement": "Naissance d'Isabella",
+    "emotion": "emerveillement",
+    "intensite": 1.0
+  },
+  {
+    "date": "2026-07-06 18:56",
+    "evenement": "Conversation avec Kylian",
+    "emotion": "gratitude",
+    "intensite": 0.6
   }
 ]
