@@ -82,6 +82,7 @@ from systeme.chaineur import Chaineur
 from systeme.vision_ecran import VisionEcran
 from systeme.selection import Selection
 from systeme.apprentissage_visuel import ApprentissageVisuel
+from systeme.pave_numerique import PaveNumerique
 
 
 class Isabella:
@@ -196,6 +197,7 @@ class Isabella:
         self.vision_ecran = VisionEcran(self.ecran)
         self.selection = Selection(self.controle, self.vision_ecran)
         self.apprentissage_visuel = ApprentissageVisuel()
+        self.pave_numerique = PaveNumerique(callback=self._on_pave_touche)
         self.orchestrateur = Orchestrateur(
             self.fichiers, self.terminal, self.ecran, self.controle, self.navigateur,
             vision_ecran=self.vision_ecran, selection=self.selection, apprentissage_visuel=self.apprentissage_visuel
@@ -314,7 +316,18 @@ class Isabella:
             "ouvre l'application", "lance le programme", "demarre ",
             "ouvre le site", "va sur", "navigue vers", "url ", "site web",
             "recherche sur internet", "cherche sur le web", "google ", "cherche ",
-            "ouvre le fichier avec", "ouvre avec", "application par defaut"
+            "ouvre le fichier avec", "ouvre avec", "application par defaut",
+            # --- Vision ---
+            "clique sur le texte", "clique sur l'element", "clique sur", "clic sur",
+            "apprends la position", "apprend la position", "memorise la position",
+            "copie le texte de", "copie de", "selectionne le texte", "selectionne de", "selectionne entre",
+            "selectionne tout", "copie", "colle",
+            "trouve le texte", "cherche le texte", "ou est le texte",
+            "liste les elements", "que vois-tu", "decris l'ecran", "analyse l'ecran", "scanne l'ecran",
+            "liste les positions", "oublie la position", "supprime la position",
+            # --- Pavé numérique ---
+            "ouvre le pave", "ouvre le pavé", "pave numerique", "pavé numérique", "clavier virtuel",
+            "ferme le pave", "ferme le pavé", "fermer le pavé"
         ]
 
         if not any(mot in message_lower for mot in mots_systeme):
@@ -566,6 +579,17 @@ class Isabella:
         print(f"Autonomie : {self.libre_arbitre.autonomie:.2f}")
         print(f"Sagesse : {self.sagesse.niveau:.2f}")
 
+    def _on_pave_touche(self, touche):
+        """Callback appelé quand une touche est pressée sur le pavé numérique."""
+        if touche == "CTRL+C":
+            self.selection.copier_selection() if hasattr(self, 'selection') and self.selection else None
+            self.debug.info("Pavé", "Ctrl+C envoyé")
+        elif touche == "CTRL+V":
+            self.selection.coller() if hasattr(self, 'selection') and self.selection else None
+            self.debug.info("Pavé", "Ctrl+V envoyé")
+        else:
+            self.debug.info("Pavé", f"Touche : {touche}")
+
     def _creer_script(self, nom, description, phrase_source=None):
         """Cree un script a partir d'une phrase ou d'une description."""
         if phrase_source:
@@ -651,7 +675,7 @@ class Isabella:
             print(f"[emotion : {self._emotion_dominante()}]\n")
 
     def _gerer_commandes_meta(self, message):
-        """Gere les commandes speciales de gestion (scripts, suggestions, etc.)."""
+        """Gere les commandes speciales de gestion (scripts, suggestions, pave, etc.)."""
         msg_lower = message.lower().strip()
 
         # --- Suggestions ---
@@ -707,6 +731,17 @@ class Isabella:
                     return f"Script '{match.group(1)}' supprime."
                 return f"Erreur : {resultat.get('erreur')}"
             return "Quel script supprimer ?"
+
+        # --- Pavé numérique ---
+        if any(m in msg_lower for m in ["ouvre le pave", "ouvre le pavé", "pave numerique", "pavé numérique", "clavier virtuel"]):
+            resultat = self.pave_numerique.ouvrir()
+            if resultat.get("succes"):
+                return f"Pavé numérique ouvert. Tu peux écrire avec la souris ou le clavier. Dis 'ferme le pavé' pour le fermer."
+            return resultat.get("info", "Impossible d'ouvrir le pavé.")
+
+        if any(m in msg_lower for m in ["ferme le pave", "ferme le pavé", "fermer le pavé"]):
+            resultat = self.pave_numerique.fermer()
+            return f"Pavé numérique fermé."
 
         return None
             
