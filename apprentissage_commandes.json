@@ -1,0 +1,63 @@
+{
+  "commandes": {
+    "ouvre youtube cherche ninjaxx": {
+      "texte_original": "ouvre youtube et cherche ninjaxx",
+      "compteur": 4,
+      "dernier_usage": "2026-07-06 19:15",
+      "premier_usage": "2026-07-06 19:13",
+      "action_detectee": "sequence",
+      "script_associe": null,
+      "contextes": []
+    },
+    "liste dossier .": {
+      "texte_original": "liste le dossier .",
+      "compteur": 7,
+      "dernier_usage": "2026-07-06 19:13",
+      "premier_usage": "2026-07-06 19:13",
+      "action_detectee": "lister",
+      "script_associe": null,
+      "contextes": [
+        {
+          "date": "19:13:14",
+          "resultat": "{'chemin': '.', 'dossiers': ['.git', 'apprentissage', 'cerveau', 'corps', 'decisions', 'environnement', 'langage', 'memoire', 'outils', 'sauvegardes', 'sensations', 'social', 'systeme', '__pycache__']"
+        },
+        {
+          "date": "19:13:14",
+          "resultat": "{'chemin': '.', 'dossiers': ['.git', 'apprentissage', 'cerveau', 'corps', 'decisions', 'environnement', 'langage', 'memoire', 'outils', 'sauvegardes', 'sensations', 'social', 'systeme', '__pycache__']"
+        },
+        {
+          "date": "19:13:42",
+          "resultat": "{'chemin': '.', 'dossiers': ['.git', 'apprentissage', 'cerveau', 'corps', 'decisions', 'environnement', 'langage', 'memoire', 'outils', 'sauvegardes', 'sensations', 'social', 'systeme', '__pycache__']"
+        },
+        {
+          "date": "19:13:42",
+          "resultat": "{'chemin': '.', 'dossiers': ['.git', 'apprentissage', 'cerveau', 'corps', 'decisions', 'environnement', 'langage', 'memoire', 'outils', 'sauvegardes', 'sensations', 'social', 'systeme', '__pycache__']"
+        },
+        {
+          "date": "19:13:42",
+          "resultat": "{'chemin': '.', 'dossiers': ['.git', 'apprentissage', 'cerveau', 'corps', 'decisions', 'environnement', 'langage', 'memoire', 'outils', 'sauvegardes', 'sensations', 'social', 'systeme', '__pycache__']"
+        }
+      ]
+    },
+    "liste dossier . puis lis fichier journal_isabella.json": {
+      "texte_original": "liste le dossier . puis lis le fichier journal_isabella.json",
+      "compteur": 2,
+      "dernier_usage": "2026-07-06 19:15",
+      "premier_usage": "2026-07-06 19:14",
+      "action_detectee": "sequence",
+      "script_associe": null,
+      "contextes": []
+    },
+    "ouvre youtube": {
+      "texte_original": "ouvre youtube",
+      "compteur": 3,
+      "dernier_usage": "2026-07-06 19:16",
+      "premier_usage": "2026-07-06 19:16",
+      "action_detectee": "navigateur_url",
+      "script_associe": null,
+      "contextes": []
+    }
+  },
+  "sequences": {},
+  "dernier_export": "2026-07-06 19:16"
+}
