@@ -1,0 +1,26 @@
+{
+  "test_btn": {
+    "nom_original": "test_btn",
+    "positions": [
+      {
+        "x": 100,
+        "y": 200,
+        "ecran": null,
+        "date": "2026-07-06 19:28"
+      }
+    ],
+    "date_creation": "2026-07-06 19:28"
+  },
+  "btn_test": {
+    "nom_original": "btn_test",
+    "positions": [
+      {
+        "x": 150,
+        "y": 250,
+        "ecran": null,
+        "date": "2026-07-06 19:29"
+      }
+    ],
+    "date_creation": "2026-07-06 19:29"
+  }
+}
