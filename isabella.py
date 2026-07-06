@@ -41,6 +41,9 @@ from langage.parler import Parler
 from langage.vocabulaire import Vocabulaire
 from langage.ton import Ton
 from langage.modele import Modele
+from langage.prompt_systeme import PromptSysteme
+from langage.tool_parser import ToolParser
+
 
 from corps.avatar import Avatar
 from corps.visage import Visage
@@ -139,6 +142,8 @@ class Isabella:
         self.vocabulaire = Vocabulaire()
         self.ton = Ton()
         self.modele_langage = Modele(modele="mistral")
+        self.prompt_systeme = PromptSysteme()
+        self.tool_parser = ToolParser
 
     def _init_corps(self):
         self.avatar = Avatar()
@@ -196,19 +201,70 @@ class Isabella:
         self.debug.info("Isabella", f"Message recu de {personne} : {message}")
         self.memoire_court.ajouter(f"{personne} dit : {message}", importance=0.7)
 
-        # Detection des commandes systeme
-        resultat_systeme = self._executer_systeme(message)
-        if resultat_systeme:
-            return resultat_systeme
-
-        analyse = self.comprendre.analyser(message)
+        # Reaction emotionnelle (toujours active)
         self._reagir_emotionnellement(message, personne)
         if personne in self.famille:
             self.famille[personne].interagir("parler", 0.5)
             self.memoire_sociale.ajouter_interaction(personne, message, 0.1)
+
+        # Mode LLM avance (si Ollama est disponible)
+        if self.modele_langage.disponible:
+            reponse = self._recevoir_llm(message, personne)
+            self.journal.noter(f"Conversation LLM avec {personne}", self._emotion_dominante(), 0.6)
+            return reponse
+
+        # Fallback : parser manuel de commandes systeme
+        resultat_systeme = self._executer_systeme(message)
+        if resultat_systeme:
+            self.journal.noter(f"Action systeme pour {personne}", self._emotion_dominante(), 0.6)
+            return resultat_systeme
+
+        # Fallback : conversation basique sans LLM
+        analyse = self.comprendre.analyser(message)
         reponse = self._formuler_reponse(analyse, personne)
         self.journal.noter(f"Conversation avec {personne}", self._emotion_dominante(), 0.6)
         return reponse
+
+    def _recevoir_llm(self, message, personne):
+        """Mode avance : le LLM decide quand utiliser les outils et formule les reponses."""
+        # Construit le system prompt avec le contexte complet d'Isabella
+        system = self.prompt_systeme.construire(self)
+        self.modele_langage.set_system_prompt(system)
+
+        # Le LLM analyse et repond (peut contenir des tool_calls)
+        reponse_brute = self.modele_langage.generer(message, system=system)
+
+        # Extrait les eventuels appels d'outils
+        texte_propre, actions = self.tool_parser.extraire(reponse_brute)
+
+        if not actions:
+            # Pas d'outil, reponse conversationnelle directe
+            return texte_propre
+
+        # Un ou plusieurs outils demandes — on execute le premier
+        action = actions[0]
+        resultat = self._executer_outil_llm(action)
+
+        # Memorise l'action
+        self.memoire_long.ajouter(
+            f"Action systeme : {action.get('action')} — resultat : {str(resultat)[:100]}",
+            intensite=0.5,
+            categorie="systeme"
+        )
+
+        # Reaction emotionnelle aux erreurs
+        if resultat.get("erreur"):
+            self.frustration.ressentir(0.3, f"erreur systeme : {resultat['erreur']}")
+
+        # Demande au LLM de formuler une reponse naturelle avec le resultat
+        reponse_finale = self.modele_langage.generer_avec_resultat(
+            message, resultat, prompt_systeme=system
+        )
+        return reponse_finale
+
+    def _executer_outil_llm(self, action_dict):
+        """Execute une action systeme retournee par le LLM."""
+        return self.orchestrateur.executer(action_dict)
 
     def _executer_systeme(self, message):
         """Detecte et execute une commande systeme. Retourne None si ce n'est pas une commande."""
