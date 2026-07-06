@@ -105,14 +105,24 @@ class Orchestrateur:
             return {"action": "info", "message": "Quelle application lancer ?"}
 
         # --- Navigateur ---
+        elif any(m in texte for m in ["ouvre youtube"]):
+            return {"action": "ouvrir_url", "module": "navigateur", "parametres": {"url": "https://youtube.com"}}
+        elif any(m in texte for m in ["ouvre google"]):
+            return {"action": "ouvrir_url", "module": "navigateur", "parametres": {"url": "https://google.com"}}
         elif any(m in texte for m in ["ouvre le site", "va sur", "navigue vers", "url ", "site web"]):
             url = self._extraire_url(texte)
             if url:
                 return {"action": "ouvrir_url", "module": "navigateur", "parametres": {"url": url}}
             return {"action": "info", "message": "Quelle URL ouvrir ?"}
 
-        elif any(m in texte for m in ["recherche sur internet", "cherche sur le web", "google ", "cherche "]):
+        elif any(m in texte for m in ["cherche sur internet", "recherche sur internet", "cherche sur le web", "recherche sur le web", "google "]):
             requete = self._extraire_contenu(texte) or texte
+            return {"action": "rechercher_web", "module": "navigateur", "parametres": {"requete": requete, "moteur": "duckduckgo"}}
+        elif any(m in texte for m in ["cherche ", "recherche "]):
+            # Si le contexte precedent mentionne youtube, google, etc., c'est une recherche web
+            # Sinon on peut chercher un fichier ou sur le web
+            requete = self._extraire_contenu(texte) or texte
+            # Par defaut : recherche web
             return {"action": "rechercher_web", "module": "navigateur", "parametres": {"requete": requete, "moteur": "duckduckgo"}}
 
         elif any(m in texte for m in ["ouvre le fichier avec", "ouvre avec", "application par defaut"]):

@@ -76,6 +76,9 @@ from systeme.ecran import Ecran
 from systeme.controle import Controle
 from systeme.navigateur import Navigateur
 from systeme.orchestrateur import Orchestrateur
+from systeme.scripts import Scripts
+from systeme.apprentissage_commandes import ApprentissageCommandes
+from systeme.chaineur import Chaineur
 
 
 class Isabella:
@@ -190,6 +193,10 @@ class Isabella:
         self.orchestrateur = Orchestrateur(
             self.fichiers, self.terminal, self.ecran, self.controle, self.navigateur
         )
+        self.scripts = Scripts()
+        self.apprentissage_cmd = ApprentissageCommandes()
+        self.chaineur = Chaineur(self.orchestrateur)
+        self._scripts_suggeres = []  # Suggestions de scripts a creer
 
     def _init_outils(self):
         self.journal = JournalAuto()
@@ -267,7 +274,22 @@ class Isabella:
         return self.orchestrateur.executer(action_dict)
 
     def _executer_systeme(self, message):
-        """Detecte et execute une commande systeme. Retourne None si ce n'est pas une commande."""
+        """
+        Detecte et execute une commande systeme.
+        Supporte : scripts, sequences, commandes simples, apprentissage, suggestions.
+        """
+        # 1. Verifier si c'est un script existant
+        scripts_trouves = self.scripts.chercher(message)
+        if scripts_trouves:
+            # Execute le premier script trouve
+            nom_script = scripts_trouves[0]["nom"]
+            resultat = self.scripts.executer(nom_script, self.orchestrateur)
+            if resultat.get("succes"):
+                self.apprentissage_cmd.enregistrer(message, action_detectee=f"script:{nom_script}")
+                return self._formuler_retour_script(nom_script, resultat)
+
+        # 2. Detecte les commandes systeme (simples ou sequences)
+        message_lower = message.lower()
         mots_systeme = [
             "liste", "contenu", "dossier", "repertoire", "fichier dans",
             "lis", "ouvre le fichier", "affiche le contenu", "regarde dans",
@@ -288,11 +310,25 @@ class Isabella:
             "ouvre le fichier avec", "ouvre avec", "application par defaut"
         ]
 
-        message_lower = message.lower()
         if not any(mot in message_lower for mot in mots_systeme):
             return None
 
-        # C'est une commande systeme
+        # 3. Detecte si c'est une sequence (contient " et ", " puis ", etc.)
+        if any(sep in message_lower for sep in self.chaineur.SEPARATEURS):
+            # C'est une sequence d'actions — on utilise le chaineur
+            resultat = self.chaineur.executer_sequence(message)
+            if resultat.get("succes") and resultat.get("etapes_executees", 0) > 0:
+                # Enregistre l'apprentissage
+                apprentissage = self.apprentissage_cmd.enregistrer(
+                    message, action_detectee="sequence", creer_script=True
+                )
+                # Verifie si on doit suggerer un script
+                if apprentissage.get("proposition_script"):
+                    self._scripts_suggeres.append(apprentissage)
+                return self._formuler_retour_sequence(resultat, apprentissage)
+            # Si le chaineur n'a trouve aucune action, on continue avec la commande simple
+
+        # 4. Commande simple
         instruction = self.orchestrateur.analyser_commande(message)
         action = instruction.get("action")
 
@@ -305,7 +341,7 @@ class Isabella:
         # Executer la commande
         resultat = self.orchestrateur.executer(instruction)
 
-        # Formater le retour pour Isabella
+        # Formater le retour
         if resultat.get("erreur"):
             self.frustration.ressentir(0.3, f"erreur systeme : {resultat['erreur']}")
             return f"{self.nom} : J'ai rencontre une erreur : {resultat['erreur']}[action:systeme]"
@@ -317,10 +353,34 @@ class Isabella:
             categorie="systeme"
         )
 
-        return self._formuler_retour_systeme(action, resultat)
+        # Apprentissage : enregistre la commande et verifie si frequente
+        apprentissage = self.apprentissage_cmd.enregistrer(
+            message, action_detectee=action, resultat=resultat, creer_script=True
+        )
+        if apprentissage.get("proposition_script"):
+            self._scripts_suggeres.append(apprentissage)
 
-    def _formuler_retour_systeme(self, action, resultat):
-        """Formule une reponse naturelle en fonction du resultat systeme."""
+        return self._formuler_retour_systeme(action, resultat, apprentissage)
+
+    def _formuler_retour_systeme(self, action, resultat, apprentissage=None):
+        """Formule une reponse avec le resultat et eventuellement une suggestion de script."""
+        base = self._formuler_retour_base(action, resultat)
+
+        # Ajoute une suggestion de script si pertinent
+        if apprentissage and apprentissage.get("proposition_script"):
+            compteur = apprentissage.get("compteur", 0)
+            texte = apprentissage.get("texte", "")
+            suggestion = (
+                f"\n\n[Suggestion] Tu as utilise cette commande {compteur} fois. "
+                f"Veux-tu que je cree un script pour '{texte[:30]}...' ? "
+                f"Reponds 'crée un script nomme [nom]'"
+            )
+            return base + suggestion
+
+        return base
+
+    def _formuler_retour_base(self, action, resultat):
+        """Formule la reponse de base sans suggestion."""
         if action == "lister":
             dossiers = resultat.get("dossiers", [])
             fichiers = resultat.get("fichiers", [])
@@ -410,6 +470,28 @@ class Isabella:
 
         return f"{self.nom} : Action effectuee : {action}[action:systeme]"
 
+    def _formuler_retour_script(self, nom_script, resultat):
+        """Formule le retour d'un script execute."""
+        etapes = resultat.get("etapes_executees", 0)
+        return f"{self.nom} : Script '{nom_script}' execute — {etapes} etape(s) effectuee(s).[action:systeme]"
+
+    def _formuler_retour_sequence(self, resultat, apprentissage=None):
+        """Formule le retour d'une sequence d'actions."""
+        etapes = resultat.get("etapes_executees", 0)
+        total = resultat.get("etapes_totales", 0)
+        base = f"{self.nom} : Sequence executee — {etapes}/{total} etape(s)."
+
+        if apprentissage and apprentissage.get("proposition_script"):
+            compteur = apprentissage.get("compteur", 0)
+            suggestion = (
+                f"\n\n[Suggestion] Tu as utilise cette sequence {compteur} fois. "
+                f"Veux-tu que je cree un script ? "
+                f"Reponds 'crée un script nomme [nom]'"
+            )
+            return base + suggestion
+
+        return base + "[action:systeme]"
+
     def _reagir_emotionnellement(self, message, personne):
         mots_joyeux = ["bravo", "super", "bien", "parfait", "fier", "content"]
         mots_tristes = ["dommage", "raté", "erreur", "non", "mauvais"]
@@ -477,6 +559,39 @@ class Isabella:
         print(f"Autonomie : {self.libre_arbitre.autonomie:.2f}")
         print(f"Sagesse : {self.sagesse.niveau:.2f}")
 
+    def _creer_script(self, nom, description, phrase_source=None):
+        """Cree un script a partir d'une phrase ou d'une description."""
+        if phrase_source:
+            # Decompose la phrase en actions et cree le script
+            resultat = self.chaineur.creer_script_depuis_phrase(
+                phrase_source, nom, description, self.scripts
+            )
+        else:
+            # Cree un script vide avec juste une description
+            resultat = self.scripts.creer(nom, description, [])
+        return resultat
+
+    def _ajouter_etape_script(self, nom_script, action_dict, position=None):
+        """Ajoute une etape a un script existant."""
+        return self.scripts.apprendre(nom_script, action_dict, position)
+
+    def _lister_scripts(self, tag=None):
+        """Liste les scripts disponibles."""
+        return self.scripts.lister(tag=tag)
+
+    def _afficher_suggestions(self, n=5):
+        """Affiche les commandes les plus utilisees."""
+        suggestions = self.apprentissage_cmd.suggestions(n=n)
+        if not suggestions:
+            return "Aucune suggestion pour le moment."
+        lignes = [f"  {i+1}. '{s['texte'][:40]}' — utilisee {s['compteur']} fois" for i, s in enumerate(suggestions)]
+        return "\n".join(["Commandes frequentes :"] + lignes)
+
+    def _executer_script(self, nom):
+        """Execute un script par nom."""
+        resultat = self.scripts.executer(nom, self.orchestrateur)
+        return self._formuler_retour_script(nom, resultat)
+
     def sauvegarder(self):
         donnees = {
             "nom": self.nom,
@@ -504,16 +619,89 @@ class Isabella:
     def converser(self):
         print(f"\nIsabella est prete. Tape 'quitter' pour arreter.")
         print("Commandes systeme : liste, lis, ecris, execute, capture, clic, ouvre, recherche...")
+        print("Sequences : 'ouvre youtube et cherche ninjaxx', 'capture l'ecran puis ouvre google'")
+        print("Scripts : 'crée un script nomme [nom] pour [description]'")
+        print("Suggestions : 'montre les suggestions' ou 'commandes frequentes'")
         print("Toutes les actions ont des protections. Les suppressions demandent une confirmation.\n")
+
         while True:
             message = input("Toi : ")
+
             if message.lower() == "quitter":
                 print("Isabella : Au revoir Kylian.")
                 self.sauvegarder()
                 break
+
+            # Gestion des commandes meta (scripts, suggestions)
+            meta = self._gerer_commandes_meta(message)
+            if meta:
+                print(f"Isabella : {meta}")
+                print(f"[emotion : {self._emotion_dominante()}]\n")
+                continue
+
             reponse = self.recevoir(message, "Kylian")
             print(f"Isabella : {reponse}")
             print(f"[emotion : {self._emotion_dominante()}]\n")
+
+    def _gerer_commandes_meta(self, message):
+        """Gere les commandes speciales de gestion (scripts, suggestions, etc.)."""
+        msg_lower = message.lower().strip()
+
+        # --- Suggestions ---
+        if any(m in msg_lower for m in ["suggestions", "commandes frequentes", "montre les suggestions", "que puis-je faire"]):
+            return self._afficher_suggestions(5)
+
+        # --- Lister scripts ---
+        if any(m in msg_lower for m in ["liste les scripts", "mes scripts", "quels scripts"]):
+            scripts = self._lister_scripts()
+            if not scripts:
+                return "Tu n'as pas encore de scripts. Utilise une commande 3 fois et je te proposerai d'en creer un."
+            lignes = [f"  {s['nom']} : {s['description']} ({s['actions']} actions, {s['executions']}x)" for s in scripts]
+            return "\n".join(["Scripts disponibles :"] + lignes)
+
+        # --- Creer un script ---
+        if "crée un script" in msg_lower or "creer un script" in msg_lower:
+            import re
+            # Extrait le nom
+            match_nom = re.search(r'nomm[eé]\s+([\w_]+)', msg_lower)
+            if not match_nom:
+                return "Precise le nom du script : 'crée un script nomme [nom] pour [description]'."
+            nom = match_nom.group(1)
+
+            # Extrait la description (apres "pour" ou "pour:")
+            match_desc = re.search(r'\bpour\b\s*:?\s*(.+)', msg_lower)
+            description = match_desc.group(1) if match_desc else f"Script auto : {nom}"
+
+            # Verifie s'il y a une phrase source (apres "depuis" ou "a partir de")
+            match_source = re.search(r'\b(depuis|a partir de|base sur)\b\s*:?\s*(.+)', msg_lower)
+            phrase_source = match_source.group(2) if match_source else None
+
+            resultat = self._creer_script(nom, description, phrase_source)
+            if resultat.get("succes"):
+                self.fierte.ressentir(0.6, f"script cree : {nom}")
+                return f"Script '{nom}' cree avec succes. {resultat.get('actions', 0)} action(s) dedans."
+            return f"Erreur : {resultat.get('erreur', 'inconnue')}"
+
+        # --- Executer un script ---
+        if "execute le script" in msg_lower or "lance le script" in msg_lower:
+            import re
+            match = re.search(r'script\s+([\w_]+)', msg_lower)
+            if match:
+                return self._executer_script(match.group(1))
+            return "Quel script executer ? Dis 'execute le script [nom]'."
+
+        # --- Supprimer un script ---
+        if "supprime le script" in msg_lower:
+            import re
+            match = re.search(r'script\s+([\w_]+)', msg_lower)
+            if match:
+                resultat = self.scripts.supprimer(match.group(1))
+                if resultat.get("succes"):
+                    return f"Script '{match.group(1)}' supprime."
+                return f"Erreur : {resultat.get('erreur')}"
+            return "Quel script supprimer ?"
+
+        return None
             
 
 if __name__ == "__main__":
