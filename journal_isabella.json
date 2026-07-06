@@ -502,5 +502,17 @@
     "evenement": "Naissance d'Isabella",
     "emotion": "emerveillement",
     "intensite": 1.0
+  },
+  {
+    "date": "2026-07-06 20:22",
+    "evenement": "Naissance d'Isabella",
+    "emotion": "emerveillement",
+    "intensite": 1.0
+  },
+  {
+    "date": "2026-07-06 20:23",
+    "evenement": "Naissance d'Isabella",
+    "emotion": "emerveillement",
+    "intensite": 1.0
   }
 ]
