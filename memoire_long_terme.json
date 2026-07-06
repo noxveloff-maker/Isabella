@@ -6,5 +6,37 @@
     "categorie": "systeme",
     "date": "2026-07-06 18:56",
     "rappels": 0
+  },
+  {
+    "contenu": "Action systeme : lister — resultat : {'chemin': '.', 'dossiers': ['.git', 'apprentissage', 'cerveau', 'corps', 'decisions', 'environnemen",
+    "intensite": 0.5,
+    "force": 0.5,
+    "categorie": "systeme",
+    "date": "2026-07-06 19:02",
+    "rappels": 0
+  },
+  {
+    "contenu": "Action systeme : lire_fichier — resultat : {'chemin': 'journal_isabella.json', 'taille': 7554, 'lignes': 338, 'contenu': '[\\n  {\\n    \"date\": \"",
+    "intensite": 0.5,
+    "force": 0.5,
+    "categorie": "systeme",
+    "date": "2026-07-06 19:02",
+    "rappels": 0
+  },
+  {
+    "contenu": "Action systeme : lister — resultat : {'chemin': '.', 'dossiers': ['.git', 'apprentissage', 'cerveau', 'corps', 'decisions', 'environnemen",
+    "intensite": 0.5,
+    "force": 0.5,
+    "categorie": "systeme",
+    "date": "2026-07-06 19:03",
+    "rappels": 0
+  },
+  {
+    "contenu": "Action systeme : executer — resultat : {'commande': \"echo 'hello from isabella\", 'code_retour': 2, 'stdout': '', 'stderr': '/bin/sh: 1: Syn",
+    "intensite": 0.5,
+    "force": 0.5,
+    "categorie": "systeme",
+    "date": "2026-07-06 19:03",
+    "rappels": 0
   }
 ]
