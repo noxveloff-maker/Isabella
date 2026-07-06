@@ -67,6 +67,13 @@ from social.interaction import Interaction
 from environnement.monde import Monde
 from environnement.meteo import Meteo
 
+from systeme.fichiers import Fichiers
+from systeme.terminal import Terminal
+from systeme.ecran import Ecran
+from systeme.controle import Controle
+from systeme.navigateur import Navigateur
+from systeme.orchestrateur import Orchestrateur
+
 
 class Isabella:
 
@@ -87,10 +94,12 @@ class Isabella:
         self._init_social()
         self._init_monde()
         self._init_outils()
+        self._init_systeme()
         self.charger()
 
         self.journal.noter("Naissance d'Isabella", "emerveillement", 1.0)
         print(f"Bonjour. Je suis {self.nom}. Je commence a exister.")
+        print("J'ai acces a ton systeme : fichiers, terminal, ecran, controle, navigateur.")
 
     def _init_cerveau(self):
         self.cerveau = Reseau([5, 8, 4])
@@ -167,6 +176,16 @@ class Isabella:
         self.monde.ajouter_lieu("chambre", "espace calme et intime")
         self.monde.ajouter_lieu("cuisine", "odeurs et chaleur")
 
+    def _init_systeme(self):
+        self.fichiers = Fichiers()
+        self.terminal = Terminal()
+        self.ecran = Ecran()
+        self.controle = Controle()
+        self.navigateur = Navigateur()
+        self.orchestrateur = Orchestrateur(
+            self.fichiers, self.terminal, self.ecran, self.controle, self.navigateur
+        )
+
     def _init_outils(self):
         self.journal = JournalAuto()
         self.sauvegarde = Sauvegarde()
@@ -176,6 +195,12 @@ class Isabella:
     def recevoir(self, message, personne="inconnu"):
         self.debug.info("Isabella", f"Message recu de {personne} : {message}")
         self.memoire_court.ajouter(f"{personne} dit : {message}", importance=0.7)
+
+        # Detection des commandes systeme
+        resultat_systeme = self._executer_systeme(message)
+        if resultat_systeme:
+            return resultat_systeme
+
         analyse = self.comprendre.analyser(message)
         self._reagir_emotionnellement(message, personne)
         if personne in self.famille:
@@ -184,6 +209,150 @@ class Isabella:
         reponse = self._formuler_reponse(analyse, personne)
         self.journal.noter(f"Conversation avec {personne}", self._emotion_dominante(), 0.6)
         return reponse
+
+    def _executer_systeme(self, message):
+        """Detecte et execute une commande systeme. Retourne None si ce n'est pas une commande."""
+        mots_systeme = [
+            "liste", "contenu", "dossier", "repertoire", "fichier dans",
+            "lis", "ouvre le fichier", "affiche le contenu", "regarde dans",
+            "cherche un fichier", "trouve le fichier", "fichier nomme",
+            "ecris", "crée un fichier", "sauvegarde dans", "note dans",
+            "supprime", "efface", "retire",
+            "execute", "lance la commande", "dans le terminal", "commande shell",
+            "processus", "programme en cours", "quoi tourne",
+            "capture l'ecran", "screenshot", "photo de l'ecran", "regarde mon ecran",
+            "taille ecran", "resolution", "dimension ecran",
+            "clic", "clique sur", "clique en",
+            "deplace la souris", "souris a", "curseur a",
+            "tape", "ecris avec le clavier", "saisis",
+            "appuie sur", "touche ", "presse ",
+            "ouvre l'application", "lance le programme", "demarre ",
+            "ouvre le site", "va sur", "navigue vers", "url ", "site web",
+            "recherche sur internet", "cherche sur le web", "google ", "cherche ",
+            "ouvre le fichier avec", "ouvre avec", "application par defaut"
+        ]
+
+        message_lower = message.lower()
+        if not any(mot in message_lower for mot in mots_systeme):
+            return None
+
+        # C'est une commande systeme
+        instruction = self.orchestrateur.analyser_commande(message)
+        action = instruction.get("action")
+
+        if action == "inconnu":
+            return None
+
+        if action == "info":
+            return f"{self.nom} : {instruction.get('message', 'Precise ta demande.')}[action:systeme]"
+
+        # Executer la commande
+        resultat = self.orchestrateur.executer(instruction)
+
+        # Formater le retour pour Isabella
+        if resultat.get("erreur"):
+            self.frustration.ressentir(0.3, f"erreur systeme : {resultat['erreur']}")
+            return f"{self.nom} : J'ai rencontre une erreur : {resultat['erreur']}[action:systeme]"
+
+        # Memorise l'action
+        self.memoire_long.ajouter(
+            f"Action systeme : {action} — resultat : {str(resultat)[:100]}",
+            intensite=0.5,
+            categorie="systeme"
+        )
+
+        return self._formuler_retour_systeme(action, resultat)
+
+    def _formuler_retour_systeme(self, action, resultat):
+        """Formule une reponse naturelle en fonction du resultat systeme."""
+        if action == "lister":
+            dossiers = resultat.get("dossiers", [])
+            fichiers = resultat.get("fichiers", [])
+            chemin = resultat.get("chemin", ".")
+            return (f"{self.nom} : Voici le contenu de {chemin} : "
+                    f"{len(dossiers)} dossier(s), {len(fichiers)} fichier(s). "
+                    f"Dossiers : {', '.join(dossiers[:5])}{'...' if len(dossiers)>5 else ''}. "
+                    f"Fichiers : {', '.join([f['nom'] for f in fichiers[:5]])}{'...' if len(fichiers)>5 else ''}[action:systeme]")
+
+        elif action == "lire_fichier":
+            contenu = resultat.get("contenu", "")[:500]
+            lignes = resultat.get("lignes", 0)
+            chemin = resultat.get("chemin", "")
+            return (f"{self.nom} : J'ai lu le fichier {chemin} ({lignes} lignes). "
+                    f"Voici le debut :\n\n{contenu}{'...' if len(resultat.get('contenu','')) > 500 else ''}[action:systeme]")
+
+        elif action == "ecrire_fichier":
+            chemin = resultat.get("chemin", "")
+            taille = resultat.get("taille", 0)
+            self.fierte.ressentir(0.4, f"fichier ecrit : {chemin}")
+            return f"{self.nom} : Fichier ecrit avec succes : {chemin} ({taille} caracteres).[action:systeme]"
+
+        elif action == "chercher_fichier":
+            trouves = resultat.get("trouves", 0)
+            resultats = resultat.get("resultats", [])
+            noms = [r["nom"] for r in resultats[:10]]
+            return (f"{self.nom} : J'ai trouve {trouves} fichier(s). "
+                    f"{', '.join(noms)}{'...' if trouves > 10 else ''}[action:systeme]")
+
+        elif action == "supprimer":
+            if resultat.get("confirmation_requise"):
+                return f"{self.nom} : {resultat.get('message', 'Confirmation requise.')}[action:systeme]"
+            return f"{self.nom} : Suppression effectuee : {resultat.get('chemin', '')}[action:systeme]"
+
+        elif action == "executer":
+            stdout = resultat.get("stdout", "")[:300]
+            return (f"{self.nom} : Commande executee (code {resultat.get('code_retour', '?')}). "
+                    f"Resultat :\n{stdout}{'...' if len(resultat.get('stdout','')) > 300 else ''}[action:systeme]")
+
+        elif action == "liste_processus":
+            actifs = resultat.get("actifs", [])
+            return (f"{self.nom} : {len(actifs)} processus en arriere-plan. "
+                    f"{', '.join([p['nom'] for p in actifs[:5]])}[action:systeme]")
+
+        elif action == "capture":
+            chemin = resultat.get("chemin", "")
+            return f"{self.nom} : Capture d'ecran effectuee : {chemin}[action:systeme]"
+
+        elif action == "infos_ecran":
+            w = resultat.get("largeur", "?")
+            h = resultat.get("hauteur", "?")
+            return f"{self.nom} : Ecran detecte : {w}x{h} pixels.[action:systeme]"
+
+        elif action == "clic":
+            x = resultat.get("x", 0)
+            y = resultat.get("y", 0)
+            return f"{self.nom} : Clic effectue en ({x}, {y}).[action:systeme]"
+
+        elif action == "deplacer_souris":
+            x = resultat.get("x", 0)
+            y = resultat.get("y", 0)
+            return f"{self.nom} : Souris deplacee en ({x}, {y}).[action:systeme]"
+
+        elif action == "taper_texte":
+            texte = resultat.get("texte", "")
+            return f"{self.nom} : Texte tape : '{texte}'[action:systeme]"
+
+        elif action == "touche":
+            touche = resultat.get("touche", "")
+            return f"{self.nom} : Touche '{touche}' appuyee.[action:systeme]"
+
+        elif action == "lancer_app":
+            app = resultat.get("application", "")
+            return f"{self.nom} : Application lancee : {app}[action:systeme]"
+
+        elif action == "ouvrir_url":
+            url = resultat.get("url", "")
+            return f"{self.nom} : Navigateur ouvert sur : {url}[action:systeme]"
+
+        elif action == "rechercher_web":
+            url = resultat.get("url", "")
+            return f"{self.nom} : Recherche web lancee : {url}[action:systeme]"
+
+        elif action == "ouvrir_fichier":
+            chemin = resultat.get("chemin", "")
+            return f"{self.nom} : Fichier ouvert avec l'application par defaut : {chemin}[action:systeme]"
+
+        return f"{self.nom} : Action effectuee : {action}[action:systeme]"
 
     def _reagir_emotionnellement(self, message, personne):
         mots_joyeux = ["bravo", "super", "bien", "parfait", "fier", "content"]
@@ -277,10 +446,12 @@ class Isabella:
         print(f"Je me souviens... J'ai {self.age_simule} an(s).")
 
     def converser(self):
-        print(f"\nIsabella est prete. Tape 'quitter' pour arreter.\n")
+        print(f"\nIsabella est prete. Tape 'quitter' pour arreter.")
+        print("Commandes systeme : liste, lis, ecris, execute, capture, clic, ouvre, recherche...")
+        print("Toutes les actions ont des protections. Les suppressions demandent une confirmation.\n")
         while True:
             message = input("Toi : ")
-            if message.lower() == "quiter":
+            if message.lower() == "quitter":
                 print("Isabella : Au revoir Kylian.")
                 self.sauvegarder()
                 break
@@ -291,21 +462,15 @@ class Isabella:
 
 if __name__ == "__main__":
     isabella = Isabella()
+    
+    # Mode conversation interactive (boucle principale)
     isabella.converser()
-    print()
-
-    print(isabella.recevoir("Bonjour Isabella comment vas tu", "Kylian"))
-    print()
-    print(isabella.recevoir("Bravo tu fais du super travail", "Kylian"))
-    print()
-    print(isabella.recevoir("Pourquoi tu existes", "Kylian"))
-    print()
-
-    isabella.etat()
-    print()
-
-    isabella.grandir(5)
-    isabella.etat()
-    print()
-
-    print(isabella.sauvegarder())
+    
+    # Tests automatiques (decommenter pour les lancer sans conversation)
+    # print(isabella.recevoir("Bonjour Isabella comment vas tu", "Kylian"))
+    # print(isabella.recevoir("Bravo tu fais du super travail", "Kylian"))
+    # print(isabella.recevoir("Pourquoi tu existes", "Kylian"))
+    # isabella.etat()
+    # isabella.grandir(5)
+    # isabella.etat()
+    # print(isabella.sauvegarder())
