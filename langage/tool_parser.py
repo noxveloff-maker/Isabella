@@ -2,9 +2,12 @@ import re
 import json
 
 class ToolParser:
-    """Parse les tool_calls du LLM dans le format <tool_call>...</tool_call>."""
+    """Parse les tool_calls du LLM dans les formats <tool_call>...</tool_call> ou <nom>...</nom>."""
 
-    PATTERN = re.compile(r'<tool_call>\s*(\{.*?\})\s*</tool_call>', re.DOTALL)
+    # Accepte les tags <controle_lancer>, <fichiers_lister>, etc. (mais PAS <tool_call>)
+    PATTERN = re.compile(r'<([a-zA-Z_][a-zA-Z0-9_]*)>\s*(\{.*?\})\s*</\1>', re.DOTALL)
+    # Fallback : <tool_call> standard (exclut tool_call du pattern generique)
+    PATTERN_TOOL_CALL = re.compile(r'<tool_call>\s*(\{.*?\})\s*</tool_call>', re.DOTALL)
 
     @classmethod
     def extraire(cls, texte):
@@ -12,11 +15,23 @@ class ToolParser:
         actions = []
         texte_propre = texte
 
+        # Cherche les tags generiques <nom>...</nom> (sauf <tool_call>)
         for match in cls.PATTERN.finditer(texte):
+            tag_name = match.group(1)
+            if tag_name == "tool_call":
+                continue  # Deja geré par le fallback
+            try:
+                action = json.loads(match.group(2))
+                actions.append(action)
+                texte_propre = texte_propre.replace(match.group(0), "")
+            except json.JSONDecodeError:
+                continue
+
+        # Fallback : <tool_call> standard
+        for match in cls.PATTERN_TOOL_CALL.finditer(texte):
             try:
                 action = json.loads(match.group(1))
                 actions.append(action)
-                # Retire le tool_call du texte
                 texte_propre = texte_propre.replace(match.group(0), "")
             except json.JSONDecodeError:
                 continue
@@ -26,7 +41,7 @@ class ToolParser:
     @classmethod
     def a_tool_calls(cls, texte):
         """Verifie si le texte contient des tool_calls."""
-        return cls.PATTERN.search(texte) is not None
+        return cls.PATTERN.search(texte) is not None or cls.PATTERN_TOOL_CALL.search(texte) is not None
 
 if __name__ == "__main__":
     # Test

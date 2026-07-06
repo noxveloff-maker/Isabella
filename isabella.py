@@ -306,7 +306,7 @@ class Isabella:
             "ecris", "crée un fichier", "sauvegarde dans", "note dans",
             "supprime", "efface", "retire",
             "execute", "lance la commande", "dans le terminal", "commande shell",
-            "processus", "programme en cours", "quoi tourne",
+            "processus", "programme en cours", "quoi tourne", "applications ouvertes", "logiciels ouverts", "quels sont les programmes", "quels sont les apps",
             "capture l'ecran", "screenshot", "photo de l'ecran", "regarde mon ecran",
             "taille ecran", "resolution", "dimension ecran",
             "clic", "clique sur", "clique en",
