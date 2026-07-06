@@ -79,6 +79,9 @@ from systeme.orchestrateur import Orchestrateur
 from systeme.scripts import Scripts
 from systeme.apprentissage_commandes import ApprentissageCommandes
 from systeme.chaineur import Chaineur
+from systeme.vision_ecran import VisionEcran
+from systeme.selection import Selection
+from systeme.apprentissage_visuel import ApprentissageVisuel
 
 
 class Isabella:
@@ -190,8 +193,12 @@ class Isabella:
         self.ecran = Ecran()
         self.controle = Controle()
         self.navigateur = Navigateur()
+        self.vision_ecran = VisionEcran(self.ecran)
+        self.selection = Selection(self.controle, self.vision_ecran)
+        self.apprentissage_visuel = ApprentissageVisuel()
         self.orchestrateur = Orchestrateur(
-            self.fichiers, self.terminal, self.ecran, self.controle, self.navigateur
+            self.fichiers, self.terminal, self.ecran, self.controle, self.navigateur,
+            vision_ecran=self.vision_ecran, selection=self.selection, apprentissage_visuel=self.apprentissage_visuel
         )
         self.scripts = Scripts()
         self.apprentissage_cmd = ApprentissageCommandes()

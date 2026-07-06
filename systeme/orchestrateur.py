@@ -8,12 +8,15 @@ class Orchestrateur:
     C'est le cerveau qui decide quels outils utiliser.
     """
 
-    def __init__(self, fichiers, terminal, ecran, controle, navigateur):
+    def __init__(self, fichiers, terminal, ecran, controle, navigateur, vision_ecran=None, selection=None, apprentissage_visuel=None):
         self.fichiers = fichiers
         self.terminal = terminal
         self.ecran = ecran
         self.controle = controle
         self.navigateur = navigateur
+        self.vision = vision_ecran
+        self.selection = selection
+        self.apprentissage_visuel = apprentissage_visuel
         self.historique = []
 
     def analyser_commande(self, texte):
@@ -23,8 +26,15 @@ class Orchestrateur:
         """
         texte = texte.lower().strip()
 
+        # --- Vision / Apprentissage visuel (avant les matches generaux) ---
+        if any(m in texte for m in ["liste les elements", "que vois-tu", "decris l'ecran", "analyse l'ecran", "scanne l'ecran"]):
+            return {"action": "lister_elements", "module": "vision", "parametres": {}}
+
+        elif any(m in texte for m in ["liste les positions", "montre les positions apprises", "elements appris", "positions memorisees"]):
+            return {"action": "lister_positions", "module": "apprentissage_visuel", "parametres": {}}
+
         # --- Fichiers ---
-        if any(m in texte for m in ["liste", "contenu", "dossier", "repertoire", "fichier dans"]):
+        elif any(m in texte for m in ["liste", "contenu", "dossier", "repertoire", "fichier dans"]):
             chemin = self._extraire_chemin(texte) or "."
             return {"action": "lister", "module": "fichiers", "parametres": {"chemin": chemin}}
 
@@ -75,12 +85,62 @@ class Orchestrateur:
         elif any(m in texte for m in ["taille ecran", "resolution", "dimension ecran"]):
             return {"action": "infos_ecran", "module": "ecran", "parametres": {}}
 
-        # --- Controle ---
-        elif any(m in texte for m in ["clic", "clique sur", "clique en"]):
+        # --- Controle + Vision ---
+        elif any(m in texte for m in ["clique sur le texte", "clique sur l'element", "clique sur", "clic sur"]):
+            texte_cible = self._extraire_texte_entre_guillemets(texte) or self._extraire_texte_apres_mot(texte, ["clique sur", "clic sur", "clique sur le texte", "clique sur l'element"])
+            if texte_cible:
+                if self.apprentissage_visuel:
+                    pos = self.apprentissage_visuel.trouver_position(texte_cible)
+                    if pos.get("succes"):
+                        return {"action": "clic", "module": "controle", "parametres": {"x": pos["x"], "y": pos["y"]}}
+                if self.vision:
+                    return {"action": "clic_texte", "module": "vision", "parametres": {"texte": texte_cible}}
+            coords = self._extraire_coordonnees(texte)
+            if coords:
+                return {"action": "clic", "module": "controle", "parametres": {"x": coords[0], "y": coords[1]}}
+            return {"action": "info", "message": "Sur quoi cliquer ? (texte, coordonnees x,y, ou element appris)"}
+
+        elif any(m in texte for m in ["clic", "clique en", "clique a"]):
             coords = self._extraire_coordonnees(texte)
             if coords:
                 return {"action": "clic", "module": "controle", "parametres": {"x": coords[0], "y": coords[1]}}
             return {"action": "info", "message": "Donne les coordonnees x,y (ex: clic a 500,300)"}
+
+        elif any(m in texte for m in ["apprends la position", "apprend la position", "memorise la position"]):
+            nom = self._extraire_texte_apres_mot(texte, ["apprends la position de", "apprend la position de", "memorise la position de", "position de"])
+            coords = self._extraire_coordonnees(texte)
+            if nom and coords:
+                return {"action": "apprendre_position", "module": "apprentissage_visuel", "parametres": {"nom": nom, "x": coords[0], "y": coords[1]}}
+            return {"action": "info", "message": "Dis 'apprends la position de [nom] en x,y'"}
+
+        elif any(m in texte for m in ["copie le texte de", "copie de", "selectionne le texte", "selectionne de", "selectionne entre"]):
+            textes = self._extraire_texte_de_a(texte)
+            if textes:
+                return {"action": "selectionner_texte", "module": "selection", "parametres": textes}
+            return {"action": "info", "message": "Precise le texte de debut et de fin : 'copie le texte de \"xxx\" a \"yyy\"'"}
+
+        elif any(m in texte for m in ["selectionne tout", "selectionne tout le texte", "ctrl a"]):
+            return {"action": "selectionner_tout", "module": "selection", "parametres": {}}
+
+        elif any(m in texte for m in ["copie", "copier la selection", "ctrl c"]):
+            return {"action": "copier", "module": "selection", "parametres": {}}
+
+        elif any(m in texte for m in ["colle", "coller", "ctrl v"]):
+            return {"action": "coller", "module": "selection", "parametres": {}}
+
+        elif any(m in texte for m in ["trouve le texte", "trouve \"", "cherche le texte", "ou est le texte", "montre moi le texte"]):
+            texte_cible = self._extraire_texte_entre_guillemets(texte) or self._extraire_contenu(texte)
+            if texte_cible:
+                return {"action": "trouver_texte", "module": "vision", "parametres": {"texte": texte_cible}}
+            return {"action": "info", "message": "Quel texte trouver ?"}
+
+        elif any(m in texte for m in ["oublie la position", "supprime la position"]):
+            nom = self._extraire_texte_apres_mot(texte, ["position de", "la position de"])
+            if nom:
+                return {"action": "oublier_position", "module": "apprentissage_visuel", "parametres": {"nom": nom}}
+            return {"action": "info", "message": "Quelle position oublier ?"}
+
+        # --- Controle standard ---
 
         elif any(m in texte for m in ["deplace la souris", "souris a", "curseur a"]):
             coords = self._extraire_coordonnees(texte)
@@ -187,6 +247,75 @@ class Orchestrateur:
             elif action == "ouvrir_fichier":
                 resultat = self.navigateur.ouvrir_fichier(params.get("chemin", ""))
 
+        elif module == "vision":
+            if action == "clic_texte":
+                if self.vision:
+                    trouve = self.vision.trouver_texte(params.get("texte", ""))
+                    if trouve.get("succes"):
+                        resultat = self.controle.clic(trouve["x"], trouve["y"])
+                        # Apprend la position si apprentissage visuel est disponible
+                        if self.apprentissage_visuel:
+                            self.apprentissage_visuel.apprendre_position(params.get("texte", ""), trouve["x"], trouve["y"])
+                    else:
+                        resultat = trouve
+                else:
+                    resultat = {"erreur": "Vision ecran non disponible. Installe Tesseract."}
+            elif action == "trouver_texte":
+                if self.vision:
+                    resultat = self.vision.trouver_texte(params.get("texte", ""))
+                else:
+                    resultat = {"erreur": "Vision ecran non disponible. Installe Tesseract."}
+            elif action == "lister_elements":
+                if self.vision:
+                    resultat = {"elements": self.vision.lister_elements_visibles()}
+                else:
+                    resultat = {"erreur": "Vision ecran non disponible. Installe Tesseract."}
+
+        elif module == "selection":
+            if action == "selectionner_texte":
+                if self.selection:
+                    p = params.get("debut"), params.get("fin")
+                    if p[0] and p[1]:
+                        resultat = self.selection.selectionner_texte(p[0], p[1])
+                    else:
+                        resultat = {"erreur": "Precise le texte de debut et de fin."}
+                else:
+                    resultat = {"erreur": "Selection non disponible."}
+            elif action == "selectionner_tout":
+                if self.selection:
+                    resultat = self.selection.selectionner_tout()
+                else:
+                    resultat = {"erreur": "Selection non disponible."}
+            elif action == "copier":
+                if self.selection:
+                    resultat = self.selection.copier_selection()
+                else:
+                    resultat = {"erreur": "Selection non disponible."}
+            elif action == "coller":
+                if self.selection:
+                    resultat = self.selection.coller()
+                else:
+                    resultat = {"erreur": "Selection non disponible."}
+
+        elif module == "apprentissage_visuel":
+            if action == "apprendre_position":
+                if self.apprentissage_visuel:
+                    resultat = self.apprentissage_visuel.apprendre_position(
+                        params.get("nom", ""), params.get("x", 0), params.get("y", 0)
+                    )
+                else:
+                    resultat = {"erreur": "Apprentissage visuel non disponible."}
+            elif action == "oublier_position":
+                if self.apprentissage_visuel:
+                    resultat = self.apprentissage_visuel.oublier(params.get("nom", ""))
+                else:
+                    resultat = {"erreur": "Apprentissage visuel non disponible."}
+            elif action == "lister_positions":
+                if self.apprentissage_visuel:
+                    resultat = {"positions": self.apprentissage_visuel.lister_positions()}
+                else:
+                    resultat = {"erreur": "Apprentissage visuel non disponible."}
+
         self.historique.append({
             "instruction": instruction,
             "resultat": resultat,
@@ -270,6 +399,42 @@ class Orchestrateur:
                 mot = mot.strip(".,!?;:")
                 if "." in mot and len(mot) > 3:
                     return mot
+        return None
+
+    def _extraire_texte_entre_guillemets(self, texte):
+        """Extrait du texte entre guillemets doubles ou simples."""
+        import re
+        match = re.search(r'["\']([^"\']+)["\']', texte)
+        if match:
+            return match.group(1)
+        return None
+
+    def _extraire_texte_apres_mot(self, texte, mots_cles):
+        """Extrait le texte qui suit un mot-cle."""
+        for mot in mots_cles:
+            if mot in texte.lower():
+                idx = texte.lower().find(mot) + len(mot)
+                reste = texte[idx:].strip()
+                # Arrete au premier marqueur de fin (en, a, pour, depuis, etc.)
+                for fin in [" en ", " a ", " pour ", " depuis ", " et ", " puis ", ",", ";"]:
+                    if fin in reste.lower():
+                        reste = reste[:reste.lower().find(fin)].strip()
+                # Nettoie les guillemets
+                reste = reste.strip('"').strip("'")
+                return reste
+        return None
+
+    def _extraire_texte_de_a(self, texte):
+        """Extrait deux textes: 'de "xxx" a "yyy"'."""
+        import re
+        # Cherche : de "..." a "..." ou de ... a ...
+        match = re.search(r'de\s+["\']?([^"\']+)["\']?\s+a\s+["\']?([^"\']+)["\']?', texte, re.IGNORECASE)
+        if match:
+            return {"debut": match.group(1).strip(), "fin": match.group(2).strip()}
+        # Cherche : de ... jusqu'a ...
+        match = re.search(r'de\s+["\']?([^"\']+)["\']?\s+jusqu[\'\']?\s+a?\s+["\']?([^"\']+)["\']?', texte, re.IGNORECASE)
+        if match:
+            return {"debut": match.group(1).strip(), "fin": match.group(2).strip()}
         return None
 
     def historique_actions(self, n=10):
