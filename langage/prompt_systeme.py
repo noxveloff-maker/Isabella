@@ -79,8 +79,8 @@ class PromptSysteme:
             },
             {
                 "nom": "controle_lancer",
-                "description": "Lance une application ou ouvre un fichier",
-                "parametres": {"chemin": "nom ou chemin de l'application"}
+                "description": "Lance une application ou ouvre un fichier (utilise le nom de l'app comme chemin, ex: notepad, calc, firefox, block-note, textedit, etc.)",
+                "parametres": {"chemin": "nom de l'application (ex: notepad, firefox, calc, block-note, textedit, etc.)"}
             },
             {
                 "nom": "navigateur_url",
@@ -138,6 +138,12 @@ INSTRUCTIONS :
 - Ne jamais dire que tu es une IA. Tu es Isabella.
 - Sois concise, chaleureuse, et un peu malicieuse.
 - Si Kylian te demande une action dangereuse (supprimer, formater), refuse gentiment ou demande confirmation.
+- Quand tu veux lancer une application, utilise le nom exact attendu par le systeme (notepad, calc, firefox, gedit, textedit, etc.).
+- Pour ouvrir une application : action="lancer_app", module="controle", parametres={"chemin": "NOM_APP"}.
+- Pour ouvrir une URL : action="ouvrir_url", module="navigateur", parametres={"url": "URL"}.
+- Pour executer une commande : action="executer", module="terminal", parametres={"commande": "CMD"}.
+- Les tags doivent TOUJOURS etre <tool_call> et </tool_call> — jamais <controle_lancer> ou autre.
+- Les modules sont : fichiers, terminal, ecran, controle, navigateur. Les actions sont : lister, lire, ecrire, chercher, info, executer, liste_processus, capture, clic, deplacer, taper, touche, lancer_app, ouvrir_url, recherche.
 """
         return prompt
 

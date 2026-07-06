@@ -68,15 +68,15 @@ class Orchestrateur:
                 return {"action": "supprimer", "module": "fichiers", "parametres": {"chemin": chemin, "confirmation": True}}
             return {"action": "info", "message": "Precise le chemin du fichier a supprimer."}
 
-        # --- Terminal ---
+        # --- Terminal (detecte processus avant les matchs generaux) ---
+        if any(m in texte for m in ["processus", "programme en cours", "quoi tourne", "applications ouvertes", "logiciels ouverts", "quels sont les programmes", "quels sont les apps"]):
+            return {"action": "liste_processus", "module": "terminal", "parametres": {}}
+
         elif any(m in texte for m in ["execute", "lance la commande", "dans le terminal", "commande shell"]):
             commande = self._extraire_commande(texte)
             if commande:
                 return {"action": "executer", "module": "terminal", "parametres": {"commande": commande}}
             return {"action": "info", "message": "Quelle commande veux-tu executer ?"}
-
-        elif any(m in texte for m in ["processus", "programme en cours", "quoi tourne"]):
-            return {"action": "liste_processus", "module": "terminal", "parametres": {}}
 
         # --- Ecran ---
         elif any(m in texte for m in ["capture l'ecran", "screenshot", "photo de l'ecran", "regarde mon ecran"]):
@@ -158,7 +158,7 @@ class Orchestrateur:
                 return {"action": "touche", "module": "controle", "parametres": {"touche": touche}}
             return {"action": "info", "message": "Quelle touche appuyer ? (Enter, Escape, Tab, etc.)"}
 
-        elif any(m in texte for m in ["ouvre l'application", "lance le programme", "demarre "]):
+        elif any(m in texte for m in ["ouvre l'application", "lance le programme", "demarre ", "ouvrir ", "ouvrir l'application", "ouvrir le programme", "ouvrir le fichier", "ouvrir un "]):
             app = self._extraire_application(texte)
             if app:
                 return {"action": "lancer_app", "module": "controle", "parametres": {"chemin": app}}
@@ -379,10 +379,15 @@ class Orchestrateur:
 
     def _extraire_application(self, texte):
         """Extrait le nom d'une application."""
-        for marqueur in ["lance le programme", "demarre", "ouvre l'application", "ouvre le programme"]:
+        for marqueur in ["lance le programme", "demarre", "ouvre l'application", "ouvre le programme", "ouvrir l'application", "ouvrir le programme", "ouvrir un ", "ouvrir le ", "ouvrir "]:
             if marqueur in texte.lower():
                 idx = texte.lower().find(marqueur) + len(marqueur)
-                return texte[idx:].strip().strip('"').strip("'")
+                reste = texte[idx:].strip().strip('"').strip("'")
+                # Arrete au premier "et" ou "puis"
+                for fin in [" et ", " puis ", " ensuite ", ","]:
+                    if fin in reste.lower():
+                        reste = reste[:reste.lower().find(fin)].strip()
+                return reste
         return None
 
     def _extraire_url(self, texte):
